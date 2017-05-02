@@ -93,6 +93,13 @@ Vcrack = HCurl(mesh, order = 1,complex=True, definedon=[],flags={"definedonbound
 
 V=FESpace([Vext,Vplus,Vminus,Vcrack])
 V_l=FESpace([Vext,Vplus,Vminus])
+###############################################################################################################
+#     Incident field
+###############################################################################################################
+Ein= exp(k*1J*(d[0]*x+d[1]*y+d[2]*z))*CoefficientFunction(p)
+Einext=GridFunction(Vext,"gEin")
+Einext.Set(Ein)
+curlEin = k*1.J*Cross(d,p)*exp(k*1.J*(d[0]*x+d[1]*y+d[2]*z))
 
 ################################################################################################################
 #     Sesquilinear forms & assemblement of the FEM matrix using a Nitsche's method on the 
@@ -102,41 +109,15 @@ V_l=FESpace([Vext,Vplus,Vminus])
 nu, epsilon = materials(mu1,mu2,mu2,eps1,eps2,eps2,mesh) # material functions for the ATC model
 nu_l, epsilon_l = materials(mu1,mu2,mu0,eps1,eps2,eps0,mesh) # material functions for the full
 
-
 nv = specialcf.normal(mesh.dim) # normal vector
 Cross = lambda u,v: CoefficientFunction((u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])) # cross product
 
-a = ATC_model_sesq_form(alpha_pml,Rpml,nu,epsilon,k,mu2,delta,nv,mesh,V,gamma,hmax,eps0,mu0)
-a_l = full_model_sesq_form(alpha_pml,Rpml,nu_l,epsilon_l,k,mu2,nv,mesh,V_l,gamma,hmax)
-
-#Incident field
-Ein= exp(k*1J*(d[0]*x+d[1]*y+d[2]*z))*CoefficientFunction(p)
-Einext=GridFunction(Vext,"gEin")
-Einext.Set(Ein)
-curlEin = k*1.J*Cross(d,p)*exp(k*1.J*(d[0]*x+d[1]*y+d[2]*z))
-
-#RHS for the crack
-f = LinearForm(V)
-f += SymbolicLFI( curlEin * 0.5 * (Cross(nv,vplus.Trace() + vext.Trace() )),BND,definedon=mesh.Boundaries("interface"))
-f += SymbolicLFI(Ein * 0.5*Cross(nv,(1./mu2)*curl(vplus).Trace()+curl(vext).Trace() ),BND,definedon=mesh.Boundaries("interface"))
-f += SymbolicLFI(-gamma/hmax*1.J*k* Ein * (vext.Trace()-vplus.Trace()),BND,definedon=mesh.Boundaries("interface"))
-
-
-#RHS for the layer
-f_l = LinearForm(V_l)
-f_l += SymbolicLFI( curlEin * 0.5 * (Cross(nv,vplus_l.Trace() + vext_l.Trace() )),BND,definedon=mesh.Boundaries("interface"))
-f_l += SymbolicLFI(Ein * 0.5*Cross(nv,(1./mu2)*curl(vplus_l).Trace()+curl(vext_l).Trace() ),BND,definedon=mesh.Boundaries("interface"))
-f_l += SymbolicLFI(-gamma/hmax*1.J*k* Ein * (vext_l.Trace()-vplus_l.Trace()),BND,definedon=mesh.Boundaries("interface"))
+a,f = ATC_model_sesq_form(alpha_pml,Rpml,nu,epsilon,k,mu2,delta,nv,mesh,V,gamma,hmax,eps0,mu0,Ein,curlEin)
+a_l,f_l = full_model_sesq_form(alpha_pml,Rpml,nu_l,epsilon_l,k,mu2,nv,mesh,V_l,gamma,hmax,Ein,curlEin)
 
 #Define solution functions
 u_l = GridFunction(V_l)#Layer Solution
 u = GridFunction(V) #ATC Solution
-
-f.Assemble()
-a.Assemble()
-
-f_l.Assemble()
-a_l.Assemble()
 
 u.vec.data += a.mat.Inverse(V.FreeDofs()) * f.vec
 u_l.vec.data += a_l.mat.Inverse(V_l.FreeDofs()) * f_l.vec
