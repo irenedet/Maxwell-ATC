@@ -18,7 +18,7 @@ def ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax):
     geometry.Add ((o_ext - pml).mat("pml"))
     geometry.Add ((pml-o_plus).mat("air"))
     geometry.Add ((o_plus-box).mat("oplus").maxh(hmax))
-    geometry.Add ((box * pl1 * pl2).mat("olayer").maxh(res),bcmod=[(pl1,"crack"),(box,"sides"),(pl2,"top")])
+    geometry.Add ((box * pl1 * pl2).mat("olayer").maxh(hmax),bcmod=[(pl1,"crack"),(box,"sides"),(pl2,"top")])
     #slices = [2**(-i) for i in reversed(range(1,6))]
     geometry.CloseSurfaces(pl1,pl2)#,slices)
     
