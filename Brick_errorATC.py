@@ -74,17 +74,14 @@ if geom == 2:
 mesh = Mesh(ngmesh)
 print(mesh.GetBoundaries())
 Draw(mesh)
-#ngmesh = MakeGeometry().GenerateMesh(maxh=0.3)
-##ngmesh.Save("scatterer.vol")
-#mesh = Mesh(ngmesh)
 
-ngsglobals.testout = "test.out"
+#ngsglobals.testout = "test.out"
+ngsglobals.msg_level = 5
+
 # First, set PML parameters for the ATC model
 SetPMLParameters(rad=Rpml,alpha=.6)
 # curve elements for geometry approximation
 mesh.Curve(4)
-
-ngsglobals.msg_level = 5
 
 Vext = HCurl(mesh, order=2, complex=True, definedon=mesh.Materials("air")+mesh.Materials("pml"), dirichlet="outer")
 Vplus  = HCurl(mesh, order=2, complex=True, definedon=mesh.Materials("oplus")+mesh.Materials("olayer"))
@@ -93,45 +90,24 @@ print(mesh.GetBoundaries())
 
 defbound = [i+1 for i, bc in enumerate(mesh.GetBoundaries()) if bc == "crack"]
 Vcrack = HCurl(mesh, order = 1,complex=True, definedon=[],flags={"definedonbound":defbound})
-#defbound2 = [i+1 for i, bc in enumerate(mesh.GetBoundaries()) if bc == "nocrack"]
-#Vnocrack = HCurl(mesh, order = 1,complex=True, definedon=[],flags={"definedonbound":defbound2})
-#Vplus_l = HCurl(mesh, order=2, complex=True, definedon=mesh.Materials("oplus")+mesh.Materials("olayer")+mesh.Materials("ominus"))
 
 V=FESpace([Vext,Vplus,Vminus,Vcrack])
-#V_l=FESpace([Vext,Vplus_l])
 V_l=FESpace([Vext,Vplus,Vminus])
-#print("V:",V)
-# u and v refer to trial and test-functions in the definition of forms below
-uext,uplus,uminus,ubnd = V.TrialFunction()
-vext,vplus,vminus,vbnd = V.TestFunction()
 
-#uext_l,uplus_l = V_l.TrialFunction()
-#vext_l,vplus_l = V_l.TestFunction()
+################################################################################################################
+#     Sesquilinear forms & assemblement of the FEM matrix using a Nitsche's method on the 
+#     exterior boundary of the inhomogeneity ("interface").
+################################################################################################################
+# Material properties:
+nu, epsilon = materials(mu1,mu2,mu2,eps1,eps2,eps2,mesh) # material functions for the ATC model
+nu_l, epsilon_l = materials(mu1,mu2,mu0,eps1,eps2,eps0,mesh) # material functions for the full
 
-uext_l,uplus_l,uminus_l= V_l.TrialFunction()
-vext_l,vplus_l,vminus_l = V_l.TestFunction()
-
-#Material properties for the crack
-mur = {"ominus" : mu1 , "oplus" : mu2 , "olayer" : mu2 , "air" : 1, "pml" : 1 }
-nu_coef = [ 1/(mur[mat]) for mat in mesh.GetMaterials() ]
-nu = CoefficientFunction ([ 1/(mur[mat]) for mat in mesh.GetMaterials() ])
-
-epsilonr = {"ominus" : eps1 , "oplus" : eps2 , "olayer" : eps2 , "air" : 1, "pml" : 1 }
-epsilon_coef = [ epsilonr[mat] for mat in mesh.GetMaterials() ]
-epsilon = CoefficientFunction (epsilon_coef)
-
-#Material properties for the layer
-mur_l = {"ominus" : mu1 , "oplus" : mu2 , "olayer" : mu0 , "air" : 1 , "pml" : 1}
-nu_l_coef = [ 1/(mur_l[mat]) for mat in mesh.GetMaterials() ]
-nu_l = CoefficientFunction ([ 1/(mur_l[mat]) for mat in mesh.GetMaterials() ])
-
-epsilonr_l = {"ominus" : eps1 , "oplus" : eps2 , "olayer" : eps0 , "air" : 1 , "pml" : 1}
-epsilon_coef_l = [ epsilonr_l[mat] for mat in mesh.GetMaterials() ]
-epsilon_l = CoefficientFunction (epsilon_coef_l)
 
 nv = specialcf.normal(mesh.dim) # normal vector
 Cross = lambda u,v: CoefficientFunction((u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])) # cross product
 
+a = ATC_model_sesq_form(alpha_pml,Rpml,nu,epsilon,k,mu2,delta,nv,mesh,V,gamma,hmax,eps0,mu0)
+a_l = full_model_sesq_form(alpha_pml,Rpml,nu_l,epsilon_l,k,mu2,nv,mesh,V_l,gamma,hmax)
 
 #Incident field
 Ein= exp(k*1J*(d[0]*x+d[1]*y+d[2]*z))*CoefficientFunction(p)
@@ -139,83 +115,12 @@ Einext=GridFunction(Vext,"gEin")
 Einext.Set(Ein)
 curlEin = k*1.J*Cross(d,p)*exp(k*1.J*(d[0]*x+d[1]*y+d[2]*z))
 
-# Coefficients for the asymptotic model
-alpha1 = 2*mu0
-alpha2 = 2*k*k*eps0
-beta1  = 2*1./(k*k*eps0)
-beta2  = 2*1./mu0
-
-#Durufle model
-#alpha1 = (mu0-mu2)
-#alpha2 = (k*k*eps0-k*k*eps2)
-#beta1  = (1./(k*k*eps0)-1./(k*k*eps2))
-#beta2  = (1./mu0-1./mu2)
-################################################################################################################
-#     Sesquilinear form for the second order ATC's model
-# Here, outside the obstacle (in o_ext, we compute the scattered field, while in the obstacle (o_plus + o_minus)
-# we compute the total field.
-################################################################################################################
-
-a = BilinearForm(V, symmetric=True, flags={"printelmat":True})
-
-a.components[0] += BFI("PML_curlcurledge",coef=nu)
-a.components[0] += BFI("PML_massedge",coef=-k*k*epsilon)
-
-a += SymbolicBFI(nu*curl(uplus)*curl(vplus)   - k*k*epsilon*uplus*vplus)
-a += SymbolicBFI(nu*curl(uminus)*curl(vminus) - k*k*epsilon*uminus*vminus)
-
-# Nietsche's method for the transmission between the scattered field in the exterior and the total field inside the obstacle
-a += SymbolicBFI(0.5*( (1./mu2)*curl(uplus).Trace() + curl(uext).Trace()) * Cross(nv,vext.Trace()-vplus.Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
-a += SymbolicBFI( Cross(nv,uext.Trace()-uplus.Trace()) * 0.5*( (1./mu2)*curl(vplus).Trace() + curl(vext).Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
-a += SymbolicBFI( gamma/hmax*1.J*k* (uext.Trace() - uplus.Trace()) * (vext.Trace() - vplus.Trace()),BND,definedon=mesh.Boundaries("interface"))
-
-# Second order asymptotic model using ATC's to simulate the effect of a thin layer betweeen o_plus and o_minus
-# NOTE (03/09/2017): needs to be updated, to account for the curvature terms popping out from the determinant. Otherwise, use the
-# contrast model (although no well posedness result for the latter model has been proved).
-a += SymbolicBFI( -delta*0.25* alpha2*( uplus.Trace()+uminus.Trace() )*( vplus.Trace()+vminus.Trace() ),BND,definedon=mesh.Boundaries("crack"))
-a += SymbolicBFI(  delta*0.25* beta2 *( uplus.Trace().Deriv()+uminus.Trace().Deriv() )*( vplus.Trace().Deriv()+vminus.Trace().Deriv() ),BND,definedon=mesh.Boundaries("crack"))
-a += SymbolicBFI(  ubnd.Trace() * Cross(nv,vplus.Trace()-vminus.Trace())  ,BND,definedon=mesh.Boundaries("crack"))
-a += SymbolicBFI(  Conj(Cross(nv,uplus.Trace()-uminus.Trace())) * Conj(vbnd.Trace()) ,BND,definedon=mesh.Boundaries("crack"))
-a += SymbolicBFI(-delta*alpha1*ubnd.Trace()*vbnd.Trace() + delta*beta1*( ubnd.Trace().Deriv() * vbnd.Trace().Deriv() ),BND,definedon=mesh.Boundaries("crack"))
-
-# Nitsche's term in nocrack
-a += SymbolicBFI( gamma/hmax*1.J*k* (uplus.Trace() - uminus.Trace()) * (vplus.Trace() - vminus.Trace()),BND,definedon=mesh.Boundaries("nocrack"))
-# Nitsche's term in sides
-#a += SymbolicBFI( gamma/hmax*1.J*k* uplus.Trace() * vplus.Trace(),BND,definedon=mesh.Boundaries("sides"))
-#a += SymbolicBFI( gamma/hmax*1.J*k* ((1./mu2)*curl(uplus).Trace() - (1./mu1)*curl(uminus).Trace()) * ((1./mu2)*curl(vplus).Trace() - (1./mu1)*curl(vminus).Trace()),BND,definedon=mesh.Boundaries("nocrack"))
-#a += SymbolicBFI(  ubnd2.Trace() * Cross(nv,vplus.Trace()-vminus.Trace())  ,BND,definedon=mesh.Boundaries("nocrack"))
-#a += SymbolicBFI(  Conj(Cross(nv,uplus.Trace()-uminus.Trace())) * Conj(vbnd2.Trace()) ,BND,definedon=mesh.Boundaries("nocrack"))
-#a += SymbolicBFI(-1.e-10*ubnd2.Trace()*vbnd2.Trace() + 1.e-10*( ubnd2.Trace().Deriv() * vbnd2.Trace().Deriv() ),BND,definedon=mesh.Boundaries("nocrack"))
 #RHS for the crack
 f = LinearForm(V)
 f += SymbolicLFI( curlEin * 0.5 * (Cross(nv,vplus.Trace() + vext.Trace() )),BND,definedon=mesh.Boundaries("interface"))
 f += SymbolicLFI(Ein * 0.5*Cross(nv,(1./mu2)*curl(vplus).Trace()+curl(vext).Trace() ),BND,definedon=mesh.Boundaries("interface"))
 f += SymbolicLFI(-gamma/hmax*1.J*k* Ein * (vext.Trace()-vplus.Trace()),BND,definedon=mesh.Boundaries("interface"))
 
-# Set PML parameters for the "exact" model
-SetPMLParameters(rad=Rpml,alpha=0.6)
-
-################################################################################################################
-#     Sesquilinear form for the exact layer model
-# Outside the obstacle (in o_ext) we compute the scattered field, while inside the obstacle (o_plus + o_minus + o_layer)
-# we compute the total field.
-################################################################################################################
-a_l = BilinearForm(V_l, symmetric=True, flags={"printelmat":True})
-
-a_l.components[0] += BFI("PML_curlcurledge",coef=nu_l)
-a_l.components[0] += BFI("PML_massedge",coef=-k*k*epsilon_l)
-
-a_l += SymbolicBFI(nu_l*curl(uplus_l)*curl(vplus_l)   - k*k*epsilon_l*uplus_l*vplus_l)
-a_l += SymbolicBFI(nu_l*curl(uminus_l)*curl(vminus_l)   - k*k*epsilon_l*uminus_l*vminus_l)
-
-# Nietsche's method for the transmission between the scattered field in the exterior and the total field inside the obstacle
-a_l += SymbolicBFI(0.5*( (1./mu2)*curl(uplus_l).Trace() + curl(uext_l).Trace()) * Cross(nv,vext_l.Trace()-vplus_l.Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
-a_l += SymbolicBFI( Cross(nv,uext_l.Trace()-uplus_l.Trace()) * 0.5*( (1./mu2)*curl(vplus_l).Trace() + curl(vext_l).Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
-a_l += SymbolicBFI( gamma/hmax*1.J*k* (uext_l.Trace() - uplus_l.Trace()) * (vext_l.Trace() - vplus_l.Trace()),BND,definedon=mesh.Boundaries("interface"))
-
-# Nitsche's term in nocrack
-a_l += SymbolicBFI( gamma/hmax*1.J*k* (uplus_l.Trace() - uminus_l.Trace()) * (vplus_l.Trace() - vminus_l.Trace()),BND,definedon=mesh.Boundaries("nocrack"))
-a_l += SymbolicBFI( gamma/hmax*1.J*k* (uplus_l.Trace() - uminus_l.Trace()) * (vplus_l.Trace() - vminus_l.Trace()),BND,definedon=mesh.Boundaries("crack"))
 
 #RHS for the layer
 f_l = LinearForm(V_l)

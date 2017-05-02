@@ -37,6 +37,70 @@ def Nitsches_transmission(alpha_pml,Rpml,nu,eps,k,mu2,nv,mesh,V,gamma,hmax):
     a.Assemble()
     return a
 
+def ATC_model_sesq_form(alpha_pml,Rpml,nu,epsilon,k,mu2,delta,nv,mesh,V,gamma,hmax,eps0,mu0):
+    # u and v refer to trial and test-functions in the definition of forms below
+    uext,uplus,uminus,ubnd = V.TrialFunction()
+    vext,vplus,vminus,vbnd = V.TestFunction()
+
+    # Coefficients for the asymptotic model
+    alpha1 = 2*mu0
+    alpha2 = 2*k*k*eps0
+    beta1  = 2*1./(k*k*eps0)
+    beta2  = 2*1./mu0
+
+    SetPMLParameters(rad=Rpml,alpha=alpha_pml)
+    a = BilinearForm(V, symmetric=True, flags={"printelmat":True})
+
+    a.components[0] += BFI("PML_curlcurledge",coef=nu)
+    a.components[0] += BFI("PML_massedge",coef=-k*k*epsilon)
+
+    a += SymbolicBFI(nu*curl(uplus)*curl(vplus)   - k*k*epsilon*uplus*vplus)
+    a += SymbolicBFI(nu*curl(uminus)*curl(vminus) - k*k*epsilon*uminus*vminus)
+
+    # Nietsche's method for the transmission between the scattered field in the exterior and the total field inside the obstacle
+    a += SymbolicBFI(0.5*( (1./mu2)*curl(uplus).Trace() + curl(uext).Trace()) * Cross(nv,vext.Trace()-vplus.Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
+    a += SymbolicBFI( Cross(nv,uext.Trace()-uplus.Trace()) * 0.5*( (1./mu2)*curl(vplus).Trace() + curl(vext).Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
+    a += SymbolicBFI( gamma/hmax*1.J*k* (uext.Trace() - uplus.Trace()) * (vext.Trace() - vplus.Trace()),BND,definedon=mesh.Boundaries("interface"))
+
+    # Terms coming from the ATC model
+    a += SymbolicBFI( -delta*0.25* alpha2*( uplus.Trace()+uminus.Trace() )*( vplus.Trace()+vminus.Trace() ),BND,definedon=mesh.Boundaries("crack"))
+    a += SymbolicBFI(  delta*0.25* beta2 *( uplus.Trace().Deriv()+uminus.Trace().Deriv() )*( vplus.Trace().Deriv()+vminus.Trace().Deriv() ),BND,definedon=mesh.Boundaries("crack"))
+    a += SymbolicBFI(  ubnd.Trace() * Cross(nv,vplus.Trace()-vminus.Trace())  ,BND,definedon=mesh.Boundaries("crack"))
+    a += SymbolicBFI(  Conj(Cross(nv,uplus.Trace()-uminus.Trace())) * Conj(vbnd.Trace()) ,BND,definedon=mesh.Boundaries("crack"))
+    a += SymbolicBFI(-delta*alpha1*ubnd.Trace()*vbnd.Trace() + delta*beta1*( ubnd.Trace().Deriv() * vbnd.Trace().Deriv() ),BND,definedon=mesh.Boundaries("crack"))
+
+    # Nitsche's term in nocrack
+    a += SymbolicBFI( gamma/hmax*k* (uplus.Trace() - uminus.Trace()) * (vplus.Trace() - vminus.Trace()),BND,definedon=mesh.Boundaries("nocrack"))
+
+    a.Assemble()
+    return a
+
+def full_model_sesq_form(alpha_pml,Rpml,nu_l,epsilon_l,k,mu2,nv,mesh,V_l,gamma,hmax):
+
+    uext_l,uplus_l,uminus_l= V_l.TrialFunction()
+    vext_l,vplus_l,vminus_l = V_l.TestFunction()
+
+    SetPMLParameters(rad=Rpml,alpha=alpha_pml)
+    a_l = BilinearForm(V_l, symmetric=True, flags={"printelmat":True})
+
+    a_l.components[0] += BFI("PML_curlcurledge",coef=nu_l)
+    a_l.components[0] += BFI("PML_massedge",coef=-k*k*epsilon_l)
+
+    a_l += SymbolicBFI(nu_l*curl(uplus_l)*curl(vplus_l)   - k*k*epsilon_l*uplus_l*vplus_l)
+    a_l += SymbolicBFI(nu_l*curl(uminus_l)*curl(vminus_l)   - k*k*epsilon_l*uminus_l*vminus_l)
+
+    # Nietsche's method for the transmission between the scattered field in the exterior and the total field inside the obstacle
+    a_l += SymbolicBFI(0.5*( (1./mu2)*curl(uplus_l).Trace() + curl(uext_l).Trace()) * Cross(nv,vext_l.Trace()-vplus_l.Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
+    a_l += SymbolicBFI( Cross(nv,uext_l.Trace()-uplus_l.Trace()) * 0.5*( (1./mu2)*curl(vplus_l).Trace() + curl(vext_l).Trace() ) ,BND,definedon=mesh.Boundaries("interface"))
+    a_l += SymbolicBFI( gamma/hmax*k* (uext_l.Trace() - uplus_l.Trace()) * (vext_l.Trace() - vplus_l.Trace()),BND,definedon=mesh.Boundaries("interface"))
+
+    # Nitsche's term in nocrack
+    a_l += SymbolicBFI( gamma/hmax*k* (uplus_l.Trace() - uminus_l.Trace()) * (vplus_l.Trace() - vminus_l.Trace()),BND,definedon=mesh.Boundaries("nocrack"))
+    a_l += SymbolicBFI( gamma/hmax*k* (uplus_l.Trace() - uminus_l.Trace()) * (vplus_l.Trace() - vminus_l.Trace()),BND,definedon=mesh.Boundaries("crack"))
+    a_l.Assemble()
+    return a_l
+
+
 def NitschesPlaneWaveSource(k,dv,pv,nv,mesh,Vext,V,gamma,hmax,mu2):
     #Incident field
     Ein= exp(k*1J*(dv[0]*x+dv[1]*y+dv[2]*z))*CoefficientFunction(pv)
