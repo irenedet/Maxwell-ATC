@@ -16,38 +16,12 @@ from mygeometry_1 import *
 from aux_functions import *
 import os
 
-#Geometrical parameters
-k = 3. # Wave number
-Rext = 2.7 #Radius of external circle
-Rpml = 2. #Radius of PML
-Rplus =  1.3 #Radius of Oplus
-Rminus = 0.6 #Radius of Ominus
-delta = 0.05 #Layer thickness
+## Load Physical, Geometrical, and Computational parameters
+from parameters import *
 
-# Parameters for the incident plane wave
-d=(0,0,1) #incident direction
-p=(1,0,0) #polarization vector
-
-#Physical parameters
-mu2 = 1. #mu in oplus
-mu1 = 1 #1.5 #mu in ominus
-mu0 = 1 #2 #mu in the layer
-
-eps2 = 1.  #+ 1J*1.01 #epsilon in oplus
-eps1 = 1 #2.  + 1J*2.01 #epsilon in ominus
-eps0 = 3.5# + 1J*3.51 #epsilon in the layer
-
-#FE parameters
-order = 2 #order of the integration in the error computation
-gamma=-1.e3
-hmax=0.2
-res=0.1
-geom = 1 # 1-->Brick, 2-->Sphere
-
-#Geometry of the circular delamination
-c = (2*delta+delta*delta)/(2+2*delta-sqrt(3)) #center of other
-Rother = 1-c+delta # Radius of other
-
+################################################################################################################
+#      Definition of the geometry
+################################################################################################################
 print('Meshing parameter',2*3.141/k/hmax*order)
 
 if geom == 1:
