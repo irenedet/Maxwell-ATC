@@ -27,7 +27,8 @@ hmax=0.4#0.2
 res=0.1
 geom = 1 # 1-->Brick, 2-->Sphere
 
-hsample = 0.1
+d = (1,0,0)
+p = (0,0,1)
 
 #Geometry of the circular delamination
 c = (2*delta+delta*delta)/(2+2*delta-sqrt(3)) #center of other

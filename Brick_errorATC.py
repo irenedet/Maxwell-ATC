@@ -11,7 +11,6 @@ from netgen.csg import *
 from ngsolve import *
 from ngsolve.internal import *
 from netgen.meshing import SetTestoutFile
-from ffcode import ExportFFMesh, SetupFFMesh, findffvec
 from mygeometry_1 import *
 from aux_functions import *
 import os
@@ -26,6 +25,7 @@ print('Meshing parameter',2*3.141/k/hmax*order)
 
 if geom == 1:
     geometry = ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax)
+    ngmesh = geometry.GenerateMesh()
 if geom == 2:
     def MakeGeometry():
         geometry = CSGeometry()
