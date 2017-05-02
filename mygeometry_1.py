@@ -3,7 +3,7 @@ from netgen.csg import *
 from ngsolve.internal import *
 
 
-def ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hsample, hmax):
+def ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax):
     geometry = CSGeometry()
     o_ext = (Sphere(Pnt(0,0,0), Rext)).bc("outer")
     pml = Sphere(Pnt(0,0,0),Rpml)
