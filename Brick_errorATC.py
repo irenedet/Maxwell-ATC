@@ -105,6 +105,7 @@ curlEin = k*1.J*Cross(d,p)*exp(k*1.J*(d[0]*x+d[1]*y+d[2]*z))
 #     Sesquilinear forms & assemblement of the FEM matrix using a Nitsche's method on the 
 #     exterior boundary of the inhomogeneity ("interface").
 ################################################################################################################
+
 # Material properties:
 nu, epsilon = materials(mu1,mu2,mu2,eps1,eps2,eps2,mesh) # material functions for the ATC model
 nu_l, epsilon_l = materials(mu1,mu2,mu0,eps1,eps2,eps0,mesh) # material functions for the full
@@ -112,6 +113,7 @@ nu_l, epsilon_l = materials(mu1,mu2,mu0,eps1,eps2,eps0,mesh) # material function
 nv = specialcf.normal(mesh.dim) # normal vector
 Cross = lambda u,v: CoefficientFunction((u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])) # cross product
 
+# Assemblement of FEM matrices and sources
 a,f = ATC_model_sesq_form(alpha_pml,Rpml,nu,epsilon,k,mu2,delta,nv,mesh,V,gamma,hmax,eps0,mu0,Ein,curlEin)
 a_l,f_l = full_model_sesq_form(alpha_pml,Rpml,nu_l,epsilon_l,k,mu2,nv,mesh,V_l,gamma,hmax,Ein,curlEin)
 
@@ -125,40 +127,25 @@ u_l.vec.data += a_l.mat.Inverse(V_l.FreeDofs()) * f_l.vec
 
 viewoptions.clipping.enable = 1
 viewoptions.clipping.nx = -1
-#viewoptions.clipping.ny = 0
-#viewoptions.clipping.nz = 0
 visoptions.clipsolution = "scal"
 
 nopml = CoefficientFunction ([0 if mat=='pml' else 1 for mat in mesh.GetMaterials() ])
 
-#Draw(Einext,mesh,"Einext")
 Draw(CoefficientFunction(u.components[2])+CoefficientFunction(u.components[1])+nopml*CoefficientFunction(u.components[0])+nopml*Einext,mesh,"E")
 Draw(u.components[0],mesh,"uext")
-#Draw(u.components[1],mesh,"uplus")
-#Draw(u.components[2],mesh,"uminus")
 
 Draw(CoefficientFunction(u_l.components[2])+CoefficientFunction(u_l.components[1])+nopml*CoefficientFunction(u_l.components[0])+nopml*Einext,mesh,"E_l")
 Draw(u_l.components[0],mesh,"uext_l")
-#Draw(u_l.components[1],mesh,"uplus_l")
-
-#solver = CGSolver(mat=a.mat, pre=c.mat)
-#u.vec.data = a.mat.Inverse() * f.vec
-#solver = CGSolver(mat=a.mat, pre=c.mat)
 
 # Error
 Error = (u.components[0]-u.components[0]) + (u.components[1] -u_l.components[1]) + (u_l.components[2]-u.components[2])
 Draw(Error,mesh,"Error")
 
-# Old error
-#error = nopml*(u.components[0]-u_l.components[0])
-#uexterior = nopml*u.components[0]
 
 uexact = nopml*u_l.components[0] + u_l.components[1] + u_l.components[2]
 
 L2error = Integrate((Error*Conj(Error)), mesh, VOL, 2*order)
-
 L2normu = Integrate((uexact*Conj(uexact)), mesh, VOL, 2*order)
-
 L2rel_error = sqrt(L2error)/sqrt(L2normu)
 
 print('hmax =',hmax)
@@ -167,11 +154,6 @@ print('L2error =',L2error)
 print('L2normu =',L2normu)
 print('L2rel_error =',L2rel_error)
 
-# Hcurl Error
-#curlerror=GridFunction(Vext,'curlerr')
-#curlerror.Set(nopml*curl(u.components[0])-nopml*curl(u_l.components[0]))
-#curluexterior=GridFunction(Vext,'curluext')
-#curluexterior.Set(nopml*curl(u.components[0]))
 
 curlerror0=GridFunction(Vext,'curlerr0')
 curlerror1=GridFunction(Vplus,'curlerr1')
