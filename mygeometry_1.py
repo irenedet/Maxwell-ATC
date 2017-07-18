@@ -24,6 +24,35 @@ def ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax):
     
     return geometry
 
+def ATCerror_halfsphere_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax):
+    geometry = CSGeometry()
+    o_ext = (Sphere(Pnt(0,0,0), Rext)).bc("outer")
+    pml = Sphere(Pnt(0,0,0),Rpml)
+    o_plus = Sphere(Pnt(0,0,0), Rplus+.2).bc("interface")
+
+    #This is to define the two close surfaces for the thin layer:
+    circle = Sphere(Pnt(0,0,0),Rminus)
+    small_cylinder = Cylinder(Pnt(0,0,1),Pnt(0,0,-1),Rminus*0.5)
+
+    pl1 = Plane(Pnt(0,0,0),Vec(0,0,-1))
+    pl2 = Plane(Pnt(0,0,delta),Vec(0,0,1))#.bc("top")
+
+    o_minus_with_layer = (circle*pl2)
+    o_minus = (circle - pl1).maxh(hmax)
+    no_olayer = ((pl1 * pl2 * circle) - small_cylinder)
+    yes_olayer =(pl1 * pl2 * small_cylinder)
+
+    geometry.Add ((o_ext - pml).mat("pml"))
+    geometry.Add ((pml-o_plus).mat("air"))
+    geometry.Add ((o_plus-o_minus_with_layer).mat("oplus").maxh(hmax))
+    geometry.Add ((o_minus).mat("ominus").maxh(hmax))    
+    geometry.Add (yes_olayer.mat("olayer").maxh(hmax),bcmod=[(pl1,"crack")])
+    geometry.Add (no_olayer.mat("oplus").maxh(hmax))
+    slices = [2**(-i) for i in reversed(range(1,6))]
+    geometry.CloseSurfaces(pl1,pl2,slices)
+    
+    return geometry
+
 def brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hsample, hmax):
     geometry = CSGeometry()
     o_ext = (Sphere(Pnt(0,0,0), Rext)).bc("outer")

@@ -1,0 +1,18 @@
+Error HalfSphere
+
+hmax = 0.4   delta = 0.05   L2rel_error = (0.09175533024017644+0j)   Hcurl_rel_error = (0.1361657386349056+0j)
+
+hmax = 0.4   delta = 0.02   L2rel_error = (0.05638501791219175+0j)   Hcurl_rel_error = (0.0850661390921923+0j)
+
+hmax = 0.4   delta = 0.01   L2rel_error = (0.036027747732314+0j)     Hcurl_rel_error = (0.056288857789841884+0j)
+
+hmax = 0.4   delta = 0.005  L2rel_error = (0.021324926525662688+0j)  Hcurl_rel_error = (0.038501785392394954+0j)
+hmax = 0.2   delta = 0.005  L2rel_error = (0.01820380749658453+0j)   Hcurl_rel_error = (0.03499255256324063+0j)
+
+hmax = 0.4   delta = 0.0025 L2rel_error = (0.013239684785375714+0j)  Hcurl_rel_error = (0.034637098913922255+0j)
+
+hmax = 0.4   delta = 0.001  L2rel_error = (0.008064016141774186+0j)  Hcurl_rel_error = (0.03884565183170781+0j)
+
+
+
+

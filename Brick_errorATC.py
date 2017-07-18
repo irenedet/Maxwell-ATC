@@ -26,6 +26,9 @@ print('Meshing parameter',2*3.141/k/hmax*order)
 if geom == 1:
     geometry = ATCerror_brick_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax)
     ngmesh = geometry.GenerateMesh()
+if geom == 4:
+    geometry = ATCerror_halfsphere_geometry(Rminus, Rplus, Rext, Rpml, delta, hmax)
+    ngmesh = geometry.GenerateMesh()
 if geom == 2:
     def MakeGeometry():
         geometry = CSGeometry()
@@ -76,12 +79,12 @@ print(mesh.GetBoundaries())
 Draw(mesh)
 
 #ngsglobals.testout = "test.out"
-ngsglobals.msg_level = 5
+#ngsglobals.msg_level = 5
 
 # First, set PML parameters for the ATC model
 SetPMLParameters(rad=Rpml,alpha=.6)
 # curve elements for geometry approximation
-mesh.Curve(4)
+mesh.Curve(1)
 
 Vext = HCurl(mesh, order=2, complex=True, definedon=mesh.Materials("air")+mesh.Materials("pml"), dirichlet="outer")
 Vplus  = HCurl(mesh, order=2, complex=True, definedon=mesh.Materials("oplus")+mesh.Materials("olayer"))
